@@ -4,6 +4,7 @@
 /CGA
 /bin
 /lib
-game.exe
+*.exe
+*.pdb
 Makefile  
 cmake_install.cmake
