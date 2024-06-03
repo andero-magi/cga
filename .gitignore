@@ -2,3 +2,8 @@
 /CMakeCache.txt
 /.vscode
 /CGA
+/bin
+/lib
+game.exe
+Makefile  
+cmake_install.cmake
