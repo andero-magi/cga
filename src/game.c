@@ -23,19 +23,6 @@
 #define STARTING_VALUE 2
 #define OUT_OF_BOUNDS -1
 
-int randomIndex = 0;
-int randomSlotOrder[64] = {
-  52, 33, 12,  9,  4, 59, 41, 50,  0, 51, 36, 60, 35, 27, 29, 10, 56, 47,
-   7,  3, 14,  5, 40, 58, 34, 45,  8, 11, 20, 44, 32, 63, 39, 17, 25, 13, 
-  24, 21,  6, 61,  2, 53, 37, 15, 38, 54, 18, 30, 26, 31,  1, 46, 49, 62, 
-  28, 43, 55, 19, 23, 42, 57, 16, 48, 22
-};
-
-typedef enum {
-  X,
-  Y
-} axis_t;
-
 typedef enum {
   GS_INACTIVE,
   GS_ACTIVE,
@@ -53,7 +40,7 @@ typedef enum {
 static game_state_t gameState = GS_INACTIVE;
 static int board[BOARD_SIZE] = {0};
 static float gameTime = 0.0f;
-static boolean debugInfoEnabled = 1;
+static boolean debugInfoEnabled = true;
 
 static char* debugBuffer = NULL;
 
@@ -103,17 +90,6 @@ static void setCell(int x, int y, int value) {
   } else {
     board[index] = value;
   }
-}
-
-static int nextRandomSlotIndex() {
-  int n = randomIndex++;
-
-  if (randomIndex >= BOARD_SIZE) {
-    randomIndex = 0;
-  }
-
-  int slot = randomSlotOrder[n];
-  return slot % BOARD_SIZE;
 }
 
 static boolean genRandomSlot();
