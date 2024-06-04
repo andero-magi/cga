@@ -1,11 +1,12 @@
 #include "font_draw.h"
-#include <gl/gl.h>
+#include <D:/MinGW/include/GL/gl.h>
 #include "cga_core.h"
+#include "glutil.h"
 
 #define CHAR_SIZE 8
 #define CHARS 128
 
-char font8x8_basic[CHARS][CHAR_SIZE] = {
+static char font8x8_basic[CHARS][CHAR_SIZE] = {
     { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},   // U+0000 (nul)
     { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},   // U+0001
     { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},   // U+0002
@@ -138,6 +139,8 @@ char font8x8_basic[CHARS][CHAR_SIZE] = {
 
 static int bInitialized = 0;
 static char_callback_t callback = null;
+static float textXScale = 1;
+static float textYScale = 1;
 
 int cgaTextDrawIsInitialized() {
   return bInitialized;
@@ -148,19 +151,103 @@ void cgaInitTextDraw() {
     return;
   }
 
-  char charTextureData[CHARS * CHAR_SIZE];
+  bInitialized = 1;
+}
 
-  for (int i = 0; i < CHARS; i++) {
-    char ch[] = font8x8_basic[i];
+void cgaCloseTextDraw() {
+  if (!bInitialized) {
+    return;
+  }
 
-    
+  bInitialized = 0;
+}
+
+void cgaSetTextScale(float xScale, float yScale) {
+  textXScale = xScale;
+  textYScale = yScale;
+}
+
+void cgaSetCharDrawCallback(char_callback_t callbackfn) {
+  callback = callbackfn;
+}
+
+static int triggerCallback(char ch, int chIndex, float* x, float* y) {
+  if (callback == null) {
+    return true;
+  }
+
+  return callback(ch, chIndex, x, y);
+}
+
+static void drawCharAt(char bitmap[], float chx, float chy, float xscale, float yscale) {
+  int set = 0;
+
+  float startX = 0;
+  float startY = 0;
+  float endY = 0;
+  float endX = 0;
+
+  for (int x = 0; x < CHAR_SIZE; x++) {
+    for (int y = 0; y < CHAR_SIZE; y++) {
+      set = bitmap[y] & (1 << x);
+
+      if (!set) {
+        continue;
+      }
+
+      startX = chx + (x * xscale);
+      startY = chy - (y * yscale);
+      endX = startX + xscale;
+      endY = startY - yscale;
+
+      drawQuad(startX, startY, endX, endY);
+    }  
   }
 }
 
-void cgaSetCallback(char_callback_t callback) {
+void cgaDrawText(float x, float y, int maxbufSize, const char* content) {
+  if (!bInitialized) {
+    return;
+  }
 
-}
+  float charX = x;
+  float charY = y;
 
-void cgaDrawText(float x, float y, const char* content) {
+  const float startX = x;
+  const float startY = y;
 
+  const float sizex = CH_BASE_X_SCALE * textXScale;
+  const float sizey = CH_BASE_Y_SCALE * textYScale;
+
+  int index = 0;
+
+  while (index < maxbufSize) {
+    char ch = content[index++];
+
+    if (ch == '\0') {
+      break;
+    }
+
+    if (ch == '\n' || ch == '\r') {
+      charX = startX;
+      charY -= CHAR_DIF_Y * sizey;
+      continue;
+    }
+
+    char* chData = font8x8_basic[ch];
+
+    if (chData == null) {
+      charX += CHAR_DIF_X * sizex;
+      continue;
+    }
+
+    int shouldDraw = triggerCallback(ch, index - 1, &charX, &charY);
+
+    if (!shouldDraw) {
+      continue;
+    }
+
+    drawCharAt(chData, charX, charY, sizex, sizey);
+    charX += CHAR_DIF_X * sizex;
+  }
 }

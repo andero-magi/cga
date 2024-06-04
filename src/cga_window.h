@@ -4,7 +4,7 @@
 #include "cga_core.h"
 
 typedef void (*key_callback_t)(int key, int action, int mods);
-typedef void (*frame_callback_t)(float deltaTime);
+typedef void (*frame_callback_t)(float deltaTime, float ratio);
 
 int cgaInit();
 
@@ -17,5 +17,21 @@ void cgaSetKeyCallback(key_callback_t callbackfn);
 void cgaSetShouldClose(int bState);
 
 void cgaSetFrameCallback(frame_callback_t callbackfn);
+
+void cgaSetScreenSize(int width, int height);
+
+void cgaGetScreenSize(int* width, int* height);
+
+void cgaSetScreenTitle(const char* title);
+
+float cgaGetScreenRatio();
+
+float cgaGetFps();
+
+float cgaGetActiveTime();
+
+float cgaGetDeltaTime();
+
+int cgaGetFrameCounter();
 
 #endif // CGA_WINDOW_H

@@ -5,4 +5,8 @@
 #define true 1
 #define false 0
 
+typedef char boolean;
+
+char* cgaFormatString(int maxlen, char* format, ...);
+
 #endif // CORE_H

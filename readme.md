@@ -4,4 +4,4 @@
 ## Running
 Run `proj-init.bat` to initialize the project.  
 Run `build.bat` to build.  
-Run `game.exe` to run the game.
+Run `run.bat` to run the game.
