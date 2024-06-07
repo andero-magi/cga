@@ -1,10 +1,12 @@
 #include "font_draw.h"
-#include <D:/MinGW/include/GL/gl.h>
+#include <GL/glew.h>
 #include "cga_core.h"
 #include "glutil.h"
+#include "log.h"
 
 #define CHAR_SIZE 8
 #define CHARS 128
+#define ENDCHAR '\0'
 
 static char font8x8_basic[CHARS][CHAR_SIZE] = {
     { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},   // U+0000 (nul)
@@ -137,29 +139,63 @@ static char font8x8_basic[CHARS][CHAR_SIZE] = {
     { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}    // U+007F
 };
 
-static int bInitialized = 0;
+static boolean initialized = 0;
 static char_callback_t callback = null;
 static float textXScale = 1;
 static float textYScale = 1;
+static int fontTextureId = 0;
 
 int cgaTextDrawIsInitialized() {
-  return bInitialized;
+  return initialized;
 }
 
-void cgaInitTextDraw() {
-  if (bInitialized) {
-    return;
+boolean cgaInitTextDraw() {
+  if (initialized) {
+    return false;
   }
 
-  bInitialized = 1;
+  const int imgXSize = 16 * CHAR_SIZE;
+  const int imgYSize =  8 * CHAR_SIZE;
+  const int imgSize = imgXSize * imgYSize;
+
+  uint8_t* textureData[imgSize] = {0};
+
+  for (int i = 0; i < CHARS; i++) {
+    char* data = font8x8_basic[i];
+  }
+
+  glGenTextures(1, &fontTextureId);
+
+  if (fontTextureId == 0) {
+    logError("Failed to generate font texture ID");
+    return false;
+  }
+
+  glBindTexture(GL_TEXTURE_2D, fontTextureId);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, imgXSize, imgYSize, 0, GL_RED, GL_UNSIGNED_BYTE, textureData);
+
+  GLenum err = glGetError();
+
+  if (err != GL_NO_ERROR) {
+    char* err = glewGetErrorString(err);
+    logErrorF("GL Error creating texture: %s", err);
+    return false;
+  }
+
+  initialized = true;
+  return true;
 }
 
 void cgaCloseTextDraw() {
-  if (!bInitialized) {
+  if (!initialized) {
     return;
   }
 
-  bInitialized = 0;
+  initialized = false;
+
+  if (fontTextureId != 0) {
+    glDeleteTextures(0, &fontTextureId);
+  }
 }
 
 void cgaSetTextScale(float xScale, float yScale) {
@@ -206,7 +242,7 @@ static void drawCharAt(char bitmap[], float chx, float chy, float xscale, float 
 }
 
 void cgaDrawText(float x, float y, int maxbufSize, const char* content) {
-  if (!bInitialized) {
+  if (!initialized) {
     return;
   }
 
@@ -224,7 +260,7 @@ void cgaDrawText(float x, float y, int maxbufSize, const char* content) {
   while (index < maxbufSize) {
     char ch = content[index++];
 
-    if (ch == '\0') {
+    if (ch == ENDCHAR) {
       break;
     }
 
@@ -249,5 +285,58 @@ void cgaDrawText(float x, float y, int maxbufSize, const char* content) {
 
     drawCharAt(chData, charX, charY, sizex, sizey);
     charX += CHAR_DIF_X * sizex;
+  }
+}
+
+#define max(a, b) (a < b ? b : a)
+
+void cgaMeasureText(int maxBufSize, const char *content, float *width, float *height, int *lines) {
+  float widthCounter = 0;
+  float heightCounter = 0;
+  float maxWidth = 0;
+  int lineCount = 0;
+
+  int index = 0;
+
+  const float sizex = CH_BASE_X_SCALE * textXScale;
+  const float sizey = CH_BASE_Y_SCALE * textYScale;
+
+  while (index < maxBufSize) {
+    char ch = content[index++];
+
+    if (ch == ENDCHAR) {
+      break;
+    }
+
+    if (ch == '\n' || ch == '\r') {
+      heightCounter += CHAR_DIF_Y * sizey;
+      maxWidth = max(widthCounter, maxWidth);
+      lineCount++;
+      widthCounter = 0;  
+
+      continue;
+    }
+
+    widthCounter += CHAR_DIF_X * sizex;
+  }
+
+  maxWidth = max(maxWidth, widthCounter);
+
+  if (width != null) {
+    *width = maxWidth;
+  }
+  if (height != null) {
+    if (index > 0) {
+      heightCounter += CHAR_DIF_Y * sizey;
+    }
+
+    *height = heightCounter;
+  }
+  if (lines != null) {
+    if (index > 0) {
+      lineCount++;
+    }
+
+    *lines = lineCount;
   }
 }

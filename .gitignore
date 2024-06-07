@@ -3,6 +3,7 @@
 /.vscode
 /CGA
 /bin
+/build
 /lib
 *.exe
 *.pdb

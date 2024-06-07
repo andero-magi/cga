@@ -1,11 +1,12 @@
-#include "cga_window.h"
-#include "GLFW/glfw3.h"
 #include <stdio.h>
 #include <time.h>
 #include <string.h>
-#include "stdlib.h"
+#include <stdlib.h>
 
-#define ERRORLOG(msg) fprintf_s(stderr, "[ERROR] %s\n", msg)
+#include "log.h"
+#include "cga_window.h"
+#include <GL/glew.h>
+#include "GLFW/glfw3.h"
 
 typedef GLFWwindow* window_t;
 
@@ -19,7 +20,7 @@ static float ratio = 1;
 static int width = 640;
 static int height = 480;
 static char* title = "A C Game attempt.";
-static int bVsyncState = 1;
+static boolean bVsyncState = true;
 
 static int frameCounter = 0;
 static float frameActiveTime = 0.0f;
@@ -41,8 +42,14 @@ int cgaInit() {
   glfwSetErrorCallback(onError);
 
   if (!glfwInit()) {
-    ERRORLOG("Failed to initialize GLFW");
+    logError("Failed to initialize GLFW");
     return 0;
+  } else {
+    int maj = 0;
+    int min = 0;
+    int rev = 0;
+    glfwGetVersion(&maj, &min, &rev);
+    logDebugF("GLFW initialized, version=%i.%i.%i", maj, min, rev);
   }
 
   glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
@@ -52,14 +59,38 @@ int cgaInit() {
 
   if (window == NULL) {
     glfwTerminate();
-    ERRORLOG("Window creation failed, exiting");
+    logError("Window creation failed, exiting");
     return 0;
+  } else {
+    logDebug("Window initialized successfully");
   }
 
   glfwSetKeyCallback(window, onKeyCallback);
   glfwMakeContextCurrent(window);
-  glfwSwapInterval(bVsyncState);
 
+  glewExperimental = true;
+  uint32_t glewInitResult = glewInit();
+
+  if (glewInitResult != GLEW_OK) {
+    logErrorF("GLEW initialization failed! %s", glewGetErrorString(glewInitResult));
+
+    glfwDestroyWindow(window);
+    glfwTerminate();
+
+    return false;
+  } else {
+    int glVerMajor = 0;
+    int glVerMinor = 0;
+
+    glGetIntegerv(GL_MAJOR_VERSION, &glVerMajor);
+    glGetIntegerv(GL_MINOR_VERSION, &glVerMinor);
+
+    logDebugF("GLEW initialized successfully, glew.version=%s gl.version=%i.%i",
+      glewGetString(GLEW_VERSION), glVerMajor, glVerMinor
+    );
+  }
+
+  glfwSwapInterval(bVsyncState);
   win = window;
 
   return 1;
@@ -93,6 +124,7 @@ void cgaLoop() {
 void cgaClose() {
   glfwDestroyWindow(win);
   glfwTerminate();
+  logInfo("Window closed");
 }
 
 void cgaSetKeyCallback(key_callback_t callbackfn) {
@@ -165,7 +197,7 @@ int cgaGetFrameCounter() {
   return frameCounter;
 }
 
-void cgaSetVsync(int bState) {
+void cgaSetVsync(boolean bState) {
   bVsyncState = bState;
 
   if (win != NULL) {

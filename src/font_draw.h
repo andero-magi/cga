@@ -11,7 +11,7 @@ typedef int(*char_callback_t)(char ch, int chIndex, float* x, float* y);
 
 int cgaTextDrawIsInitialized();
 
-void cgaInitTextDraw();
+boolean cgaInitTextDraw();
 
 void cgaCloseTextDraw();
 
@@ -20,5 +20,7 @@ void cgaSetTextScale(float xScale, float yScale);
 void cgaSetCharDrawCallback(char_callback_t callback);
 
 void cgaDrawText(float x, float y, int maxbufSize, const char* content);
+
+void cgaMeasureText(int maxBufSize, const char* content, float* width, float* height, int* lines);
 
 #endif // FONT_DRAW_H

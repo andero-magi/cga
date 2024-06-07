@@ -1,12 +1,15 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <GL/glew.h>
+
 #include "game.h"
 #include "cga_core.h"
 #include "cga_window.h"
 #include "cga_inputs.h"
 #include "glutil.h"
 #include "font_draw.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <D:/MinGW/include/GL/gl.h>
+#include "log.h"
+#include "cga_render.h"
 
 #define BOARD_WIDTH 4
 #define BOARD_HEIGHT 4
@@ -14,6 +17,7 @@
 #define MOVE_TIME_SECS 0.5
 #define DEBUG_INFO_BUF_SIZE 100
 #define TARGET_VALUE 2048.0f
+#define SCORE_BUF_LEN 20
 
 #define TO_INDEX(x, y) ((BOARD_WIDTH * x) + y)
 #define IN_BOUNDS(x, y) ((x >= 0 && x < BOARD_WIDTH) && (y >= 0 && y < BOARD_HEIGHT))
@@ -46,6 +50,10 @@ static char* debugBuffer = NULL;
 
 static int freeSlots[BOARD_SIZE] = {0};
 static int freeSlotCount = 0;
+
+static int score = 0;
+static int hiScore = 0;
+static char scoreBuf[SCORE_BUF_LEN] = {0};
 
 static void findFreeSlots() {
   freeSlotCount = 0;
@@ -104,7 +112,7 @@ static void startGame() {
 
 static void setGameLost() {
   gameState = GS_LOST;
-  printf("[DEBUG] Game lost!\n");
+  logDebug("Game lost!");
 }
 
 static boolean isGameLost() {
@@ -186,7 +194,9 @@ static int shiftCell(int x, int y, int moveX, int moveY) {
     }
 
     if (v == startVal) {
-      setCell(nextX, nextY, v + startVal);
+      int nval = v + startVal;
+      setCell(nextX, nextY, nval);
+      score += nval;
       break;
     }
 
@@ -262,6 +272,10 @@ static int shiftY(shift_direction_t dir) {
 }
 
 static void shiftInDirection(shift_direction_t dir) {
+  if (gameState != GS_ACTIVE) {
+    return;
+  }
+
   int movedPieces = 0;
 
   if (dir == DIR_DOWN || dir == DIR_UP) {
@@ -342,11 +356,7 @@ static void onInput(int key, int action, int mods) {
   }
 }
 
-static int charCallback(char ch, int index, float* x, float* y) {
-  return 1;
-}
-
-static void printDebugInfo() {
+static void printDebugInfo(float deltaTime) {
   if (debugBuffer == NULL) {
     debugBuffer = malloc(DEBUG_INFO_BUF_SIZE);
 
@@ -358,14 +368,23 @@ static void printDebugInfo() {
 
   float fps = cgaGetFps();
   int frameCounter = cgaGetFrameCounter();
-  int printedChars = sprintf_s(debugBuffer, DEBUG_INFO_BUF_SIZE, "FPS: %.0f", fps);
+  int printedChars = sprintf_s(debugBuffer, DEBUG_INFO_BUF_SIZE, "FPS: %.0f\nDeltaTime: %fs", fps, deltaTime);
+
+  float width = 0;
+  float height = 0;
+  
+  cgaSetTextScale(0.5f, 0.5f);
+  cgaMeasureText(DEBUG_INFO_BUF_SIZE, debugBuffer, &width, &height, null);
+
+  float qX = -1.0f;
+  float qY = 1.0f;
+
+  glColor3f(0.0f, 0.75f, 0);
+  drawQuad(qX, qY, qX + width, qY - height);
 
   if (printedChars > 0) {
-    cgaSetCharDrawCallback(charCallback);
-    glColor3f(0.0f, 1.0f, 0);
-    cgaSetTextScale(0.5f, 0.5f);
+    glColor3f(1.0f, 1.0f, 1.0f);
     cgaDrawText(-1.0f, 1.0f, printedChars, debugBuffer);
-    cgaSetCharDrawCallback(null);
   }
 }
 
@@ -437,7 +456,7 @@ static void drawBoard(float ratio) {
   float shrinkX = cellSizeX / 10.0f;
   float shrinkY = cellSizeY / 10.0f;
 
-  const bufSize = 5;
+  const int bufSize = 5;
   char scoreBuffer[bufSize];
   int wrote = 0;
 
@@ -459,51 +478,115 @@ static void drawBoard(float ratio) {
       drawQuad(cStartX, cStartY, cEndX, cEndY);
 
       if (cellValue != NO_CELL_VALUE) {
-        glColor3f(1.0f, 1.0f, 1.0f);
+        if (cellValue < 8) {
+          glColor3ub(119, 110, 101);
+        } else {
+          glColor3f(1.0f, 1.0f, 1.0f);
+        }
 
         wrote = sprintf_s(scoreBuffer, bufSize, "%i", cellValue);
 
-        if (wrote > 0) {
-          float textShiftX = (wrote - 1) * (cellSizeX / 10.0f);
-          float cSizeX = ((-cellSizeX / CH_BASE_X_SCALE) * 0.1) / ((float) wrote);
-          float cSizeY = ((-cellSizeY / CH_BASE_Y_SCALE) * 0.1) / ((float) wrote);
-
-          cgaSetTextScale(cSizeX, cSizeY);
-
-          cgaDrawText(
-            (cStartX + cellSizeX - (shrinkX * 2.5f) + textShiftX) /*/ ((float) wrote)*/,
-            cStartY + shrinkY + textShiftX,
-            bufSize,
-            scoreBuffer
-          );
+        if (wrote < 1) {
+          continue;
         }
+
+        float textShiftX = (wrote - 1) * (cellSizeX / 10.0f);
+        float cSizeX = ((-cellSizeX / CH_BASE_X_SCALE) * 0.1) / ((float) wrote);
+        float cSizeY = ((-cellSizeY / CH_BASE_Y_SCALE) * 0.1) / ((float) wrote);
+
+        cgaSetTextScale(cSizeX, cSizeY);
+
+        cgaDrawText(
+          (cStartX + cellSizeX - (shrinkX * 2.5f) + textShiftX),
+          cStartY + shrinkY + textShiftX,
+          bufSize,
+          scoreBuffer
+        );
       }
     }
   }
+}
+
+static void drawScore(float ratio) {
+  int len = sprintf_s(scoreBuf, SCORE_BUF_LEN, "Score: %i", score);
+
+  if (len < 1) {
+    logError("Error writing to score text buffer");
+    return;
+  }
+
+  cgaSetTextScale(1, ratio);
+  glColor3f(0.0f, 1.0f, 0.0f);
+
+  cgaDrawText(-0.95f, -0.85f, SCORE_BUF_LEN, scoreBuf);
+}
+
+static void drawCenteredText(float y, int textLen, char* content) {
+  cgaSetTextScale(1, 1);
+
+  float width = 0;
+  cgaMeasureText(textLen, content, &width, null, null);
+
+  float x = 0 - (width / 2.0f);
+  
+  glColor3f(0.0f, 0.5f, 0.0f);
+  cgaDrawText(x + CH_BASE_X_SCALE, y - CH_BASE_Y_SCALE, textLen, content);
+
+  glColor3f(0, 1, 0);
+  cgaDrawText(x, y, textLen, content);
 }
 
 void onUpdate(float deltaTime, float ratio) {
   gameTime += deltaTime;
 
   drawBoard(ratio);
+  drawScore(ratio);
 
   if (gameState == GS_LOST) {
     char* youLost = "You lose!";
-    cgaSetTextScale(1, 1);
+    char* restart = "'R' to restart";
 
-    float x = 0 - (5 * 8 * CH_BASE_X_SCALE);
-    float y = 0.75f;
-
-    glColor3f(0.0f, 0.5f, 0.0f);
-    cgaDrawText(x + CH_BASE_X_SCALE, y - CH_BASE_Y_SCALE, 20, youLost);
-
-    glColor3f(0, 1, 0);
-    cgaDrawText(x, y, 20, youLost);
+    drawCenteredText(0.75f, 10, youLost);
+    drawCenteredText(-0.65f, 20, restart);
+  } else {
+    drawCenteredText(0.75f, 6, "2048");
   }
 
   if (debugInfoEnabled) {
-    printDebugInfo();
+    printDebugInfo(deltaTime);
   }
+}
+
+static void bufferTest() {
+  vertex_buffer buf = cgaGenVertexBuffer();
+
+  if (buf == null) {
+    logError("Failed to gen buffer");
+    return;
+  }
+
+  float v1 = 1.32f;
+  float v2 = 1.54f;
+  float v3 = 3.5464f;
+  int32_t i32 = 12343;
+
+  cgaPushVertex2f(buf, v1, v2);
+  cgaPushF32(buf, v3);
+  cgaPushI32(buf, i32);
+
+  logDebugF("buf.id=%i", buf->id);
+  logDebugF("buf data: cap=%i len=%i", buf->capacity, buf->length);
+  
+  float* floatPtr = (float*) buf->data;
+
+  logDebugF("float buf[0]: gotten=%f original=%f, equals=%i", floatPtr[0], v1, floatPtr[0] == v1);
+  logDebugF("float buf[1]: gotten=%f original=%f, equals=%i", floatPtr[1], v2, floatPtr[1] == v2);
+  logDebugF("float buf[2]: gotten=%f original=%f, equals=%i", floatPtr[2], v3, floatPtr[2] == v3);
+
+  int32_t* intBuf = (int32_t*) (floatPtr);
+  logDebugF("  int buf[3]: gotten=%8i original=%8i equals=%i", intBuf[3], i32, intBuf[3] == i32);
+
+  cgaFreeVertexBuffer(buf);
 }
 
 void gameMain() {
@@ -516,7 +599,9 @@ void gameMain() {
   cgaInitTextDraw();
   cgaSetScreenTitle("2048");
   cgaSetScreenSize(800, 800);
-  cgaSetVsync(true);
+  cgaSetVsync(false);
+
+  bufferTest();
 
   startGame();
 

@@ -34,4 +34,6 @@ float cgaGetDeltaTime();
 
 int cgaGetFrameCounter();
 
+void cgaSetVsync(boolean bState);
+
 #endif // CGA_WINDOW_H
